@@ -9,6 +9,9 @@ const { Server } = require('socket.io');
 
 const db = new Database(path.join(__dirname, 'milas.db'));
 
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS players (
     id TEXT PRIMARY KEY,
@@ -114,6 +117,12 @@ app.post('/api/friends/:id/:friend', (req, res) => {
     const userId = String(req.params.id);
     const friendId = String(req.params.friend);
 
+    if (userId === friendId) {
+      return res.status(400).json({
+        error: 'Cannot add yourself as a friend'
+      });
+    }
+
     getPlayer(userId);
     getPlayer(friendId);
 
@@ -135,8 +144,6 @@ app.post('/api/friends/:id/:friend', (req, res) => {
 });
 
 function finish(id, win) {
-  const player = getPlayer(id);
-
   const trophyChange = win ? 10 : -3;
   const coinChange = win ? 50 : 15;
 
@@ -151,7 +158,7 @@ function finish(id, win) {
     String(id)
   );
 
-  return getPlayer(player.id);
+  return getPlayer(id);
 }
 
 function matchPlayers(a, b) {
@@ -207,6 +214,18 @@ io.on('connection', (socket) => {
     socket.data.id = String(id);
     socket.data.player = player;
 
+    // Если этот игрок уже онлайн с другого сокета — отключаем старый
+    const previousSocketId = online.get(String(id));
+    if (previousSocketId && previousSocketId !== socket.id) {
+      const previous = io.sockets.sockets.get(previousSocketId);
+      if (previous) {
+        previous.emit('error_message', {
+          message: 'Logged in from another device'
+        });
+        previous.disconnect(true);
+      }
+    }
+
     online.set(
       String(id),
       socket.id
@@ -243,7 +262,8 @@ io.on('connection', (socket) => {
         candidate &&
         candidate.connected &&
         candidate !== socket &&
-        candidate.data.player
+        candidate.data.player &&
+        candidate.data.id !== socket.data.id
       ) {
         other = candidate;
         break;
@@ -297,4 +317,37 @@ io.on('connection', (socket) => {
     }
   });
 
- 
+  // Завершение матча на сервере (было не реализовано)
+  socket.on('finish', ({ win } = {}) => {
+    if (!socket.data.id) return;
+
+    const updated = finish(socket.data.id, Boolean(win));
+    socket.emit('player', updated);
+  });
+
+  // Обработка отключения — критично для чистоты очереди и online
+  socket.on('disconnect', () => {
+    removeFromQueue(socket);
+
+    const id = socket.data.id;
+    if (id && online.get(id) === socket.id) {
+      online.delete(id);
+      io.emit('presence', {
+        id,
+        online: false
+      });
+    }
+
+    // Уведомляем соперника, если матч был активен
+    if (socket.data.room) {
+      socket
+        .to(socket.data.room)
+        .emit('enemy_left');
+    }
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
