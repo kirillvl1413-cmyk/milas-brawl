@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>MILAS BRAWL — Бой</title>
+  <link rel="stylesheet" href="/battle.css">
+</head>
+<body>
+  <div id="app">
+    <div id="top">
+      <div class="hp enemy"><span id="enemyName">Соперник</span><div class="bar"><i id="enemyHp"></i></div></div>
+      <div id="status">ПОИСК СОПЕРНИКА...</div>
+      <div class="hp me"><span id="myName">MILAS</span><div class="bar"><i id="myHp"></i></div></div>
+    </div>
+
+    <main id="arena">
+      <div id="waiting">🔎<b>Ищем игрока...</b><small>Ожидай второго игрока</small></div>
+      <div id="me" class="fighter">MILAS</div>
+      <div id="enemy" class="fighter enemyFighter">ENEMY</div>
+    </main>
+
+    <div id="controls">
+      <div id="joystick"><div id="stick"></div></div>
+      <button id="attack">💥</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/battle.js"></script>
+</body>
+</html>
